@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Fashion Creative Director</title>
+    <style>
+        :root {
+            --primary: #000000;
+            --bg: #f8f9fa;
+            --user-msg: #007AFF;
+            --bot-msg: #ffffff;
+            --accent: #5856D6;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        /* Layout Structure */
+        .app-wrapper {
+            display: flex;
+            width: 100%;
+            max-width: 1200px;
+            height: 100vh;
+            background: white;
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Sidebar for Assets (S3 stored items) */
+        .asset-sidebar {
+            width: 300px;
+            border-right: 1px solid #eee;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            font-weight: 700;
+            font-size: 1.1em;
+            border-bottom: 1px solid #eee;
+        }
+
+        .asset-group {
+            padding: 15px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .asset-group h3 {
+            font-size: 0.8em;
+            text-transform: uppercase;
+            color: #888;
+            margin-bottom: 10px;
+        }
+
+        .thumbnail-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .thumb {
+            width: 100%;
+            aspect-ratio: 1;
+            background: #eee;
+            border-radius: 6px;
+            object-fit: cover;
+            border: 1px solid #ddd;
+        }
+
+        /* Main Chat Area */
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #fdfdfd;
+            position: relative;
+        }
+
+        header {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+            text-align: center;
+            font-weight: bold;
+            background: white;
+        }
+
+        #chat-window {
+            flex: 1;
+            overflow-y: auto;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Message Bubbles */
+        .message {
+            max-width: 85%;
+            padding: 14px 18px;
+            border-radius: 20px;
+            line-height: 1.5;
+            font-size: 15px;
+            position: relative;
+        }
+
+        .user {
+            align-self: flex-end;
+            background: var(--user-msg);
+            color: white;
+            border-bottom-right-radius: 4px;
+            box-shadow: 0 4px 10px rgba(0, 122, 255, 0.2);
+        }
+
+        .bot {
+            align-self: flex-start;
+            background: var(--bot-msg);
+            color: #1a1a1a;
+            border-bottom-left-radius: 4px;
+            border: 1px solid #e5e5e5;
+        }
+
+        .bot img {
+            width: 100%;
+            border-radius: 12px;
+            margin-top: 12px;
+            cursor: zoom-in;
+            transition: transform 0.2s;
+        }
+
+        .bot img:hover {
+            transform: scale(1.02);
+        }
+
+        .typing {
+            padding: 10px 25px;
+            font-style: italic;
+            color: #888;
+            font-size: 0.85em;
+            display: none;
+        }
+
+        /* Input Bar */
+        .input-area {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #eee;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .file-upload-btn {
+            background: #f0f0f5;
+            border: none;
+            padding: 12px;
+            border-radius: 50%;
+            cursor: pointer;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 14px 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 30px;
+            outline: none;
+            font-size: 16px;
+            background: #fafafa;
+        }
+
+        #send-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 30px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        #send-btn:hover {
+            background: #333;
+        }
+
+        #send-btn:disabled {
+            opacity: 0.3;
+        }
+
+        .preview-bar {
+            display: flex;
+            gap: 5px;
+            overflow-x: auto;
+            padding-bottom: 5px;
+        }
+
+        .preview-tag {
+            background: #eef2ff;
+            color: var(--accent);
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            border: 1px solid #c7d2fe;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="app-wrapper">
+        <div class="asset-sidebar">
+            <div class="sidebar-header">Studio Assets</div>
+
+            <div class="asset-group">
+                <h3>Custom Uploads</h3>
+                <div id="user-uploads-grid" class="thumbnail-grid"></div>
+            </div>
+
+            <div class="asset-group">
+                <h3>AI Generated</h3>
+                <div id="ai-generated-grid" class="thumbnail-grid"></div>
+            </div>
+        </div>
+
+        <div class="chat-container">
+            <header>Photographer Agent</header>
+
+            <div id="chat-window">
+                <div class="message bot">
+                    Welcome to the Studio! <br>
+                    Step 1: <b>Select an Avatar</b> to begin.
+                    <div id="preset-avatars" style="margin-top:10px; display:flex; gap:10px;"></div>
+                </div>
+            </div>
+
+            <div class="typing" id="typing-indicator">Agent is working...</div>
+
+            <!-- Workflow Actions -->
+            <div id="workflow-actions"
+                style="padding: 10px 20px; background: #f8f9fa; border-top: 1px solid #eee; display: flex; gap: 10px; overflow-x: auto;">
+                <!-- Dynamic Buttons will appear here -->
+            </div>
+
+            <div class="input-area">
+                <div class="input-row">
+                    <input type="text" id="msgInput" placeholder="Send a message..."
+                        onkeypress="if(event.key === 'Enter') sendMessage()">
+                    <button id="send-btn" onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const sessionId = 'studio_' + Math.random().toString(36).substr(2, 9);
+
+        // Hardcoded presets (matching python)
+        const PRESETS = [
+            "https://teems-agents.s3.eu-north-1.amazonaws.com/photographer_agent/person.png",
+            "https://teems-agents.s3.eu-north-1.amazonaws.com/photographer_agent/Screenshot+from+2026-01-13+17-57-21.png",
+            "https://teems-agents.s3.eu-north-1.amazonaws.com/photographer_agent/Screenshot+from+2026-01-13+17-56-52.png"
+        ];
+
+        window.addEventListener('DOMContentLoaded', () => {
+            renderPresets();
+            updateWorkflowUI("AVATAR_SELECTION");
+        });
+
+        function renderPresets() {
+            const container = document.getElementById('preset-avatars');
+            PRESETS.forEach(url => {
+                const img = document.createElement('img');
+                img.src = url;
+                img.style = "width:60px; height:60px; border-radius:50%; cursor:pointer; border:2px solid transparent;";
+                img.onclick = () => selectAvatar(url);
+                container.appendChild(img);
+            });
+
+            // Add "Upload Custom Avatar" button
+            const btn = document.createElement('button');
+            btn.innerText = "+ Custom";
+            btn.onclick = () => document.getElementById('avatar-upload').click();
+            btn.style = "padding:5px 10px; border-radius:20px; border:1px dashed #ccc; background:none; cursor:pointer;";
+            container.appendChild(btn);
+        }
+
+        // --- API CALLS ---
+
+        async function selectAvatar(url) {
+            appendMessage(`Selected Avatar: <img src="${url}" style="width:20px; vertical-align:middle; border-radius:50%">`, 'user');
+
+            const fd = new FormData();
+            fd.append('session_id', sessionId);
+            fd.append('avatar_url', url);
+
+            const res = await fetch('/select_avatar', { method: 'POST', body: fd });
+            const data = await res.json();
+
+            appendMessage(data.message, 'bot');
+            updateWorkflowUI(data.stage);
+        }
+
+        async function uploadFiles(type) {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.multiple = true;
+            input.accept = 'image/*';
+
+            input.onchange = async (e) => {
+                const files = e.target.files;
+                if (files.length === 0) return;
+
+                appendMessage(`Uploading ${files.length} ${type}(s)...`, 'user');
+
+                const fd = new FormData();
+                fd.append('session_id', sessionId);
+                fd.append('type', type);
+                for (let i = 0; i < files.length; i++) {
+                    fd.append('files', files[i]);
+                }
+
+                const res = await fetch('/upload', { method: 'POST', body: fd });
+                const data = await res.json();
+
+                // Update Sidebar
+                data.urls.forEach(url => addToSidebar(url, 'user'));
+
+                appendMessage(data.message, 'bot');
+                updateWorkflowUI(data.stage);
+            };
+            input.click();
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('msgInput');
+            const txt = input.value.trim();
+            if (!txt) return;
+
+            appendMessage(txt, 'user');
+            input.value = '';
+            document.getElementById('typing-indicator').style.display = 'block';
+
+            const fd = new FormData();
+            fd.append('session_id', sessionId);
+            fd.append('message', txt);
+
+            try {
+                const res = await fetch('/chat', { method: 'POST', body: fd });
+                const data = await res.json();
+
+                // Regex to find URLs but exclude trailing markdown characters ( ) ] . ,
+                const urlRegex = /(https?:\/\/[^\s"',\]\)]+)/gi;
+
+                let matches = data.output.match(urlRegex) || [];
+                // Clean matches of any potential trailing punctuation that slipped through
+                matches = matches.map(u => u.replace(/[).,;]+$/, ''));
+                matches = [...new Set(matches)]; // Dedupe
+
+                let cleanText = data.output;
+
+                // Clean up the text for display
+                matches.forEach(u => {
+                    cleanText = cleanText.replace(u, '');
+                });
+                // Remove markdown format artifacts like []()
+                cleanText = cleanText.replace(/\[.*?\]\(\)/g, '');
+                cleanText = cleanText.replace(/[\[\]]/g, ''); // Remove hanging brackets
+
+                appendMessage(cleanText.trim(), 'bot', matches);
+
+                // Add generated images to sidebar
+                matches.forEach(u => addToSidebar(u, 'ai'));
+
+                // Store run_id globally for feedback
+                if (data.run_id) {
+                    window.currentRunId = data.run_id;
+                }
+            } catch (e) {
+                appendMessage("Error: " + e.message, 'bot');
+            } finally {
+                document.getElementById('typing-indicator').style.display = 'none';
+            }
+        }
+
+        // --- UI HELPERS ---
+
+        function updateWorkflowUI(stage) {
+            const bar = document.getElementById('workflow-actions');
+            bar.innerHTML = ''; // Clear
+
+            if (stage === 'AVATAR_SELECTION') {
+                // Already handled in chat message
+            } else if (stage === 'APPAREL_UPLOAD' || stage === 'START') { // Fallback
+                createBtn(bar, "Upload Apparel 👕", () => uploadFiles('apparel'));
+                createBtn(bar, "Upload More Avatars 👤", () => uploadFiles('avatar'));
+            } else if (stage === 'SCENE_SELECTION' || stage === 'GENERATION') {
+                createBtn(bar, "Suggest Scenes 🎬", () => {
+                    document.getElementById('msgInput').value = "Suggest 3 creative scenes for this fit.";
+                    sendMessage();
+                });
+                createBtn(bar, "Upload More Apparel 👕", () => uploadFiles('apparel'));
+            }
+        }
+
+        function createBtn(parent, text, onClick) {
+            const b = document.createElement('button');
+            b.innerText = text;
+            b.onclick = onClick;
+            b.className = "action-btn";
+            b.style = "padding:8px 16px; border-radius:6px; background:#007AFF; color:white; border:none; cursor:pointer; font-weight:500;";
+            parent.appendChild(b);
+        }
+
+        function appendMessage(text, sender, images = []) {
+            const chatWindow = document.getElementById('chat-window');
+            const div = document.createElement('div');
+            div.className = `message ${sender}`;
+
+            // Render HTML
+            let htmlText = text.replace(/\n/g, '<br>');
+            htmlText = htmlText.replace(/!\[.*?\]\(.*?\)/g, '');
+            div.innerHTML = htmlText;
+
+            if (images.length > 0) {
+                const container = document.createElement('div');
+                container.style = "display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:10px;";
+                images.forEach(url => {
+                    const imgWrap = document.createElement('div');
+                    imgWrap.style = "display:flex; flex-direction:column; gap:5px;";
+
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.style = "width:100%; border-radius:8px; cursor:zoom-in;";
+                    img.onclick = () => window.open(url, '_blank');
+
+                    // Controls: Download | Like | Dislike
+                    const controls = document.createElement('div');
+                    controls.style = "display:flex; justify-content:space-between; align-items:center; background:#f0f0f5; padding:8px; border-radius:8px; font-size:1.2em;";
+
+                    controls.innerHTML = `
+                        <a href="${url}" download target="_blank" style="text-decoration:none; cursor:pointer;" title="Download">⬇️</a>
+                        <div style="display:flex; gap:15px;">
+                            <span style="cursor:pointer;" onclick="submitFeedback('${url}', 1)" title="Like">👍</span>
+                            <span style="cursor:pointer;" onclick="submitFeedback('${url}', -1)" title="Dislike">👎</span>
+                        </div>
+                    `;
+
+                    imgWrap.appendChild(img);
+                    imgWrap.appendChild(controls);
+                    container.appendChild(imgWrap);
+                });
+                div.appendChild(container);
+            }
+
+            chatWindow.appendChild(div);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        function addToSidebar(url, type) {
+            const id = type === 'user' ? 'user-uploads-grid' : 'ai-generated-grid';
+            const grid = document.getElementById(id);
+            const img = document.createElement('img');
+            img.src = url;
+            img.className = 'thumb';
+            img.onclick = () => window.open(url, '_blank');
+            grid.prepend(img);
+        }
+    </script>
+
+    <!-- Hidden Inputs for Custom Uploads -->
+    <input type="file" id="avatar-upload" style="display:none" accept="image/*" onchange="uploadCustomAvatar(this)">
+
+    <script>
+        async function submitFeedback(url, score) {
+            const fd = new FormData();
+            fd.append('session_id', sessionId);
+            fd.append('image_url', url);
+            fd.append('score', score);
+
+            if (window.currentRunId) {
+                fd.append('run_id', window.currentRunId);
+            }
+
+            try {
+                await fetch('/feedback', { method: 'POST', body: fd });
+                alert(score === 1 ? "Thanks for liking!" : "Thanks for feedback.");
+            } catch (e) { console.error(e); }
+        }
+
+        async function uploadCustomAvatar(input) {
+            if (input.files.length === 0) return;
+            const fd = new FormData();
+            fd.append('session_id', sessionId);
+            fd.append('type', 'avatar');
+            fd.append('files', input.files[0]);
+
+            appendMessage("Uploading custom avatar...", 'user');
+            const res = await fetch('/upload', { method: 'POST', body: fd });
+            const data = await res.json();
+
+            addToSidebar(data.urls[0], 'user');
+            appendMessage("Custom Avatar Uploaded.", 'bot');
+            updateWorkflowUI(data.stage);
+        }
+    </script>
+
+</body>
+
+</html>
